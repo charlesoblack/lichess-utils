@@ -11,6 +11,7 @@ use regex::Regex;
 
 use pgn_reader::{Visitor, Skip, BufferedReader,
                  RawComment, RawHeader, SanPlus};
+use shakmaty::{Chess, fen, Position};
 
 #[derive(Debug, Serialize, Clone)]
 struct GameHeaders {
@@ -58,16 +59,16 @@ impl GameHeaders {
 }
 
 #[derive(Debug, Serialize, Clone)]
-struct GameMoves {
+struct GameComments {
     game_id: String,
     half_move: usize,
     clock: String,
     eval: String,
 }
 
-impl GameMoves {
-    fn new() -> GameMoves {
-        GameMoves {
+impl GameComments {
+    fn new() -> GameComments {
+        GameComments {
             game_id: String::from(""),
             half_move: 0,
             clock: String::from(""),
@@ -76,26 +77,49 @@ impl GameMoves {
     }
 }
 
+#[derive(Debug, Serialize, Clone)]
+struct GamePositions {
+    game_id: String,
+    half_move: usize,
+    fen: String,
+}
+
+impl GamePositions {
+    fn new() -> GamePositions {
+        GamePositions {
+            game_id: String::from(""),
+            half_move: 0,
+            fen: String::from(""),
+        }
+    }
+}
+
 struct PgnExtractor {
+    pos: Chess,
     moves: usize,
     games: usize,
     half_moves: usize,
     header_file: Writer<File>,
-    moves_file: Writer<File>,
+    positions_file: Writer<File>,
+    comments_file: Writer<File>,
     game_headers: GameHeaders,
-    game_moves: GameMoves,
+    game_positions: GamePositions,
+    game_comments: GameComments,
 }
 
 impl PgnExtractor {
     fn new() -> PgnExtractor {
         PgnExtractor {
+            pos: Chess::default(),
             moves: 0,
             games: 0,
             half_moves: 0,
             header_file: Writer::from_path("header_results.csv").unwrap(),
-            moves_file: Writer::from_path("moves_results.csv").unwrap(),
+            positions_file: Writer::from_path("position_results.csv").unwrap(),
+            comments_file: Writer::from_path("comments_results.csv").unwrap(),
             game_headers: GameHeaders::new(),
-            game_moves: GameMoves::new(),
+            game_positions: GamePositions::new(),
+            game_comments: GameComments::new(),
         }
     }
 }
@@ -139,7 +163,8 @@ impl Visitor for PgnExtractor {
     fn end_headers(&mut self) -> Skip {
         // write to file
         self.header_file.serialize(&self.game_headers).unwrap();
-        self.game_moves.game_id = self.game_headers.game_link.clone();
+        self.game_comments.game_id = self.game_headers.game_link.clone();
+        self.game_positions.game_id = self.game_headers.game_link.clone();
 
         self.game_headers = GameHeaders::new();
         Skip(false)
@@ -150,15 +175,15 @@ impl Visitor for PgnExtractor {
         let parsed_comment = str::from_utf8(comment.as_bytes()).unwrap();
         let re = Regex::new(r"\[%eval ([^\]]+)").unwrap();
         let captures = re.captures(parsed_comment).unwrap();
-        self.game_moves.eval = captures.get(1).unwrap().as_str().to_string();
+        self.game_comments.eval = captures.get(1).unwrap().as_str().to_string();
 
         let re = Regex::new(r"\[%clk ([^\]]+)").unwrap();
         let captures = re.captures(parsed_comment).unwrap();
-        self.game_moves.clock = captures.get(1).unwrap().as_str().to_string();
+        self.game_comments.clock = captures.get(1).unwrap().as_str().to_string();
 
-        self.game_moves.half_move = self.half_moves;
+        self.game_comments.half_move = self.half_moves;
 
-        self.moves_file.serialize(&self.game_moves).unwrap();
+        self.comments_file.serialize(&self.game_comments).unwrap();
     }
 
     fn begin_game(&mut self) {
@@ -166,9 +191,20 @@ impl Visitor for PgnExtractor {
         self.half_moves = 0;
     }
 
-    fn san(&mut self, _san_plus: SanPlus) {
+    fn san(&mut self, san_plus: SanPlus) {
         self.moves += 1;
         self.half_moves += 1;
+
+        // play move
+        if let Ok(m) = san_plus.san.to_move(&self.pos) {
+            self.pos.play_unchecked(&m);
+        };
+
+        self.game_positions.fen = fen::fen(&self.pos);
+        self.game_positions.half_move = self.half_moves;
+
+        // write to file
+        self.positions_file.serialize(&self.game_positions).unwrap();
     }
 
     fn begin_variation(&mut self) -> Skip {
@@ -176,6 +212,7 @@ impl Visitor for PgnExtractor {
     }
 
     fn end_game(&mut self) -> Self::Result {
+        self.pos = Chess::default();
         self.moves
     }
 }
