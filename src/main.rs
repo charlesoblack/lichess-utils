@@ -1,6 +1,7 @@
 extern crate csv;
 
 use std::io;
+use std::str;
 use std::fs::File;
 use std::string::String;
 
@@ -105,6 +106,36 @@ impl Visitor for PgnExtractor {
 
     fn header(&mut self, key: &[u8], value: RawHeader<'_>) {
         // agg headers
+        let parsed_key = str::from_utf8(key).unwrap();
+        let parsed_value = str::from_utf8(value.as_bytes())
+                                .unwrap()
+                                .to_string();
+
+        let mut pointless = String::new();
+
+        *match parsed_key {
+            "Event" => &mut self.game_headers.event,
+            "Site" => &mut self.game_headers.game_link,
+            "White" => &mut self.game_headers.white_player,
+            "Black" => &mut self.game_headers.black_player,
+            "Result" => &mut self.game_headers.result,
+            "UTCDate" => &mut self.game_headers.date_played,
+            "UTCTime" => &mut self.game_headers.time_played,
+            "WhiteElo" => &mut self.game_headers.white_elo,
+            "BlackElo" => &mut self.game_headers.black_elo,
+            "WhiteRatingDiff" => &mut self.game_headers.white_rating_diff,
+            "BlackRatingDiff" => &mut self.game_headers.black_rating_diff,
+            "ECO" => &mut self.game_headers.eco,
+            "Opening" => &mut self.game_headers.opening_name,
+            "TimeControl" => {let cloned_value = parsed_value.clone();
+                              let time: Vec<&str> = cloned_value.split('+').collect();
+                              self.game_headers.initial_time = time[0].parse().unwrap();
+                              self.game_headers.increment = time[1].parse().unwrap();
+                              &mut self.game_headers.time_control}, // special case
+            "Termination" => &mut self.game_headers.termination,
+            &_ => &mut pointless,
+        } = parsed_value.clone();
+
     }
 
     fn end_headers(&mut self) -> Skip {
@@ -142,9 +173,10 @@ fn main() -> io::Result<()> {
 
     // TODO: write csv headers before starting extraction
 
-    let mut counter = PgnExtractor::new();
-    reader.read_all(&mut counter)?;
+    let mut parser = PgnExtractor::new();
+    reader.read_all(&mut parser)?;
 
-    println!("{:?}", counter.moves);
+    println!("Games parsed: {:?}", parser.games);
+    println!("Moves parsed: {:?}", parser.moves);
     Ok(())
 }
