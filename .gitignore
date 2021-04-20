@@ -1,0 +1,10 @@
+*.sublime-project
+*.sublime-workspace
+*.csv
+*.pgn
+*.tar.gz
+
+
+# Added by cargo
+
+/target
