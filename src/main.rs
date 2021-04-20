@@ -2,6 +2,7 @@ extern crate csv;
 
 use std::io;
 use std::str;
+use std::env;
 use std::fs::File;
 use std::string::String;
 
@@ -218,15 +219,26 @@ impl Visitor for PgnExtractor {
 }
 
 fn main() -> io::Result<()> {
-    let pgn_file = File::open("../sample_games.pgn")?;
-    let mut reader = BufferedReader::new(pgn_file);
+    let args: Vec<String> = env::args().collect();
 
-    // TODO: write csv headers before starting extraction
+    match args.len() {
+        // one argument passed
+        2 => {
+            let pgn_file = File::open(args[1].clone())?;
+            let mut reader = BufferedReader::new(pgn_file);
 
-    let mut parser = PgnExtractor::new();
-    reader.read_all(&mut parser)?;
+            // TODO: write csv headers before starting extraction
 
-    println!("Games parsed: {:?}", parser.games);
-    println!("Moves parsed: {:?}", parser.moves);
-    Ok(())
+            let mut parser = PgnExtractor::new();
+            reader.read_all(&mut parser)?;
+
+            println!("Games parsed: {:?}", parser.games);
+            println!("Moves parsed: {:?}", parser.moves);
+            Ok(())
+        }
+        _ => {
+            //println!("Must pass only single file location as argument!");
+            Err(io::Error::new(io::ErrorKind::Other, "Must pass only single file location as argument"))
+        },
+    }
 }
