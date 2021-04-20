@@ -7,6 +7,7 @@ use std::string::String;
 
 use csv::Writer;
 use serde::Serialize;
+use regex::Regex;
 
 use pgn_reader::{Visitor, Skip, BufferedReader,
                  RawComment, RawHeader, SanPlus};
@@ -60,7 +61,6 @@ impl GameHeaders {
 struct GameMoves {
     game_id: String,
     half_move: usize,
-    fen: String,
     clock: String,
     eval: String,
 }
@@ -70,7 +70,6 @@ impl GameMoves {
         GameMoves {
             game_id: String::from(""),
             half_move: 0,
-            fen: String::from(""),
             clock: String::from(""),
             eval: String::from(""),
         }
@@ -135,18 +134,31 @@ impl Visitor for PgnExtractor {
             "Termination" => &mut self.game_headers.termination,
             &_ => &mut pointless,
         } = parsed_value.clone();
-
     }
 
     fn end_headers(&mut self) -> Skip {
         // write to file
         self.header_file.serialize(&self.game_headers).unwrap();
+        self.game_moves.game_id = self.game_headers.game_link.clone();
+
         self.game_headers = GameHeaders::new();
         Skip(false)
     }
 
     fn comment(&mut self, comment: RawComment<'_>) {
         // parse comment
+        let parsed_comment = str::from_utf8(comment.as_bytes()).unwrap();
+        let re = Regex::new(r"\[%eval ([^\]]+)").unwrap();
+        let captures = re.captures(parsed_comment).unwrap();
+        self.game_moves.eval = captures.get(1).unwrap().as_str().to_string();
+
+        let re = Regex::new(r"\[%clk ([^\]]+)").unwrap();
+        let captures = re.captures(parsed_comment).unwrap();
+        self.game_moves.clock = captures.get(1).unwrap().as_str().to_string();
+
+        self.game_moves.half_move = self.half_moves;
+
+        self.moves_file.serialize(&self.game_moves).unwrap();
     }
 
     fn begin_game(&mut self) {
@@ -156,6 +168,7 @@ impl Visitor for PgnExtractor {
 
     fn san(&mut self, _san_plus: SanPlus) {
         self.moves += 1;
+        self.half_moves += 1;
     }
 
     fn begin_variation(&mut self) -> Skip {
