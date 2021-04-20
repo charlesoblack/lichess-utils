@@ -5,10 +5,12 @@ use std::fs::File;
 use std::string::String;
 
 use csv::Writer;
+use serde::Serialize;
 
 use pgn_reader::{Visitor, Skip, BufferedReader,
                  RawComment, RawHeader, SanPlus};
 
+#[derive(Debug, Serialize, Clone)]
 struct GameHeaders {
     event: String,
     game_link: String,
@@ -53,6 +55,7 @@ impl GameHeaders {
     }
 }
 
+#[derive(Debug, Serialize, Clone)]
 struct GameMoves {
     game_id: String,
     half_move: usize,
@@ -77,8 +80,8 @@ struct PgnExtractor {
     moves: usize,
     games: usize,
     half_moves: usize,
-    header_file: Writer<io:Write>,
-    moves_file: Writer<io:Write>,
+    header_file: Writer<File>,
+    moves_file: Writer<File>,
     game_headers: GameHeaders,
     game_moves: GameMoves,
 }
@@ -106,7 +109,7 @@ impl Visitor for PgnExtractor {
 
     fn end_headers(&mut self) -> Skip {
         // write to file
-        self.header_file.write_record(self.game_headers).unwrap();
+        self.header_file.serialize(&self.game_headers).unwrap();
         self.game_headers = GameHeaders::new();
         Skip(false)
     }
