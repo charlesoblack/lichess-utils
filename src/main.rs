@@ -153,8 +153,10 @@ impl Visitor for PgnExtractor {
             "Opening" => &mut self.game_headers.opening_name,
             "TimeControl" => {let cloned_value = parsed_value.clone();
                               let time: Vec<&str> = cloned_value.split('+').collect();
-                              self.game_headers.initial_time = time[0].parse().unwrap();
-                              self.game_headers.increment = time[1].parse().unwrap();
+                              self.game_headers.initial_time = time[0].parse().unwrap_or_else(|_| 0);
+                              if time.len() > 1 {
+                                self.game_headers.increment = time[1].parse().unwrap_or_else(|_| 0);
+                              }
                               &mut self.game_headers.time_control}, // special case
             "Termination" => &mut self.game_headers.termination,
             &_ => &mut pointless,
@@ -175,12 +177,16 @@ impl Visitor for PgnExtractor {
         // parse comment
         let parsed_comment = str::from_utf8(comment.as_bytes()).unwrap();
         let re = Regex::new(r"\[%eval ([^\]]+)").unwrap();
-        let captures = re.captures(parsed_comment).unwrap();
-        self.game_comments.eval = captures.get(1).unwrap().as_str().to_string();
+        let captures = re.captures(parsed_comment);
+        if captures.is_some() {
+            self.game_comments.eval = captures.unwrap().get(1).unwrap().as_str().to_string();
+        }
 
         let re = Regex::new(r"\[%clk ([^\]]+)").unwrap();
-        let captures = re.captures(parsed_comment).unwrap();
-        self.game_comments.clock = captures.get(1).unwrap().as_str().to_string();
+        let captures = re.captures(parsed_comment);
+        if captures.is_some() {
+            self.game_comments.clock = captures.unwrap().get(1).unwrap().as_str().to_string();
+        }
 
         self.game_comments.half_move = self.half_moves;
 
