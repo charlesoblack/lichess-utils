@@ -1,4 +1,5 @@
 use std::io;
+use std::fs::File;
 use pgn_reader::{Visitor, Skip, BufferedReader, SanPlus};
 
 struct MoveCounter {
@@ -32,15 +33,12 @@ impl Visitor for MoveCounter {
 }
 
 fn main() -> io::Result<()> {
-    let pgn = b"1. e4 e5 2. Nf3 (2. f4)
-                { game paused due to bad weather }
-                2... Nf6 *";
-
-    let mut reader = BufferedReader::new_cursor(&pgn[..]);
+    let pgn_file = File::open("../sample_games.pgn")?;
+    let mut reader = BufferedReader::new(pgn_file);
 
     let mut counter = MoveCounter::new();
-    let moves = reader.read_game(&mut counter)?;
+    reader.read_all(&mut counter)?;
 
-    assert_eq!(moves, Some(4));
+    println!("{:?}", counter.moves);
     Ok(())
 }
