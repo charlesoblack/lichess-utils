@@ -233,8 +233,6 @@ fn main() -> io::Result<()> {
             let pgn_file = File::open(args[1].clone())?;
             let mut reader = BufferedReader::new(pgn_file);
 
-            // TODO: write csv headers before starting extraction
-
             let mut parser = PgnExtractor::new();
             reader.read_all(&mut parser)?;
 
@@ -243,7 +241,6 @@ fn main() -> io::Result<()> {
             Ok(())
         }
         _ => {
-            //println!("Must pass only single file location as argument!");
             Err(io::Error::new(io::ErrorKind::Other, "Must pass only single file location as argument"))
         },
     }
